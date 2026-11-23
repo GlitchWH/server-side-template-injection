@@ -1,0 +1,2 @@
+# server-side-template-injection
+Solutions for PortSwigger Web Security Academy server-side template injection labs, featuring explanations and custom Python scripts.
