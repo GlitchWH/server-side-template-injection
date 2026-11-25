@@ -1,0 +1,92 @@
+==================================================
+Lab 2: Basic Server-Side Template Injection (Code Context)
+==================================================
+
+=======================
+WHAT THIS LAB IS ABOUT
+=======================
+
+A blog site lets logged-in users choose how their name appears on their comments.
+The chosen value is saved and then placed into a Tornado template when a post is loaded.
+Because the saved value goes into the template as code, we can break out of the expression and add our own Python.
+
+Goal: run the system command that deletes /home/carlos/morale.txt.
+
+==============================
+HOW THE WEBSITE NORMALLY WORKS
+==============================
+
+When you pick a display option, the server stores a value such as user.name in blog-post-author-display.
+When a post loads, the server renders the template {{user.name}}, which shows your name above your comment.
+
+=======================
+ WHAT IS THE PROBLEM
+=======================
+
+The saved value is placed inside the template without being treated as plain text.
+Writing }} closes the expression early, and anything after it is read as template syntax, so we can inject our own expressions and Python statements.
+
+===========================
+THREE THINGS TO UNDERSTAND
+===========================
+
+Expression ({{ ... }}): Tornado evaluates the contents and prints the result.
+Statement ({% ... %}): Tornado runs the contents as Python, without printing a result. We use it to import os.
+System call: os.system() runs an operating system command, which is how we delete the file.
+
+======================================
+THE ATTACK
+======================================
+
+First, we test with the expression:
+
+user.name}}{{7*7}}
+
+The comment name shows "Peter Wiener49}}", which confirms the expression is evaluated.
+
+Then we send the full payload:
+
+user.name}}{% import os %}{{os.system('rm /home/carlos/morale.txt')
+
+The original }} closes the expression, the statement imports os, and the final expression runs the command.
+The closing }} from the original template completes the last expression, so the payload does not need to add it.
+
+============================
+HOW TO SOLVE IT MANUALLY
+============================
+
+Log in as wiener and post a comment on any blog post.
+Intercept the request that changes blog-post-author-display, and set it to the test payload.
+Reload the post and check that the name shows 49.
+Send the full payload, URL-encoded, then reload the post. The lab is marked as solved once the file is deleted.
+
+=========================
+WHAT THIS SCRIPT DOES
+=========================
+
+* It logs in as wiener and posts a comment, so there is a post where the name appears.
+* It sets blog-post-author-display to the payload, with the CSRF token from the account page.
+* It reloads the post so the template is evaluated and the command runs.
+* It sends the payload through data=, so requests encodes it once and the % signs are not double-encoded.
+
+=============================
+WHY THIS HAPPENS
+=============================
+
+The saved display value is inserted into the template as code.
+An attacker who writes }} can end the expression and add Python statements, which run on the server with its permissions.
+
+=============================
+HOW TO PREVENT THIS
+=============================
+
+Do not put user-controlled values into template source. Store a choice, such as an ID, and map it to a fixed value on the server.
+If a value must appear in a template, pass it as data, not as part of the template text.
+Restrict the template engine's access to modules such as os.
+
+=============================
+ KEY POINTS TO REMEMBER
+=============================
+Closing an expression early lets the attacker run template statements.
+A simple arithmetic test confirms the injection before a harmful payload is sent.
+Never let users control template source, even indirectly through saved settings.
