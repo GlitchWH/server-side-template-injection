@@ -1,1 +1,90 @@
+==================================================
+Lab 1: Basic Server-Side Template Injection (ERB)
+==================================================
 
+=======================
+WHAT THIS LAB IS ABOUT
+=======================
+
+A shopping website shows a message on the home page through a URL parameter.
+The server builds the page using an ERB template, and the message value is placed inside that template without being treated as plain text.
+That lets us put template code in the message and have the server run it.
+
+Goal: run the system command that deletes /home/carlos/morale.txt.
+
+==============================
+HOW THE WEBSITE NORMALLY WORKS
+==============================
+
+When the page loads with message=<text>, the server renders the text into the home page.
+A normal message is shown as is, for example "Unfortunately this product is out of stock".
+
+=======================
+ WHAT IS THE PROBLEM
+=======================
+
+The message value is inserted into the template before it is evaluated.
+ERB reads anything between <%= and %> as Ruby code and prints the result, so the server runs what we send.
+
+===========================
+THREE THINGS TO UNDERSTAND
+===========================
+
+ERB tag (<%= ... %>): Tells ERB to evaluate the expression inside and print its result.
+Test expression: 7*7 is a simple check. If the page shows 49, the input is being evaluated as code.
+system(): A Ruby method that runs an operating system command. It is the step that turns a test into an action.
+
+======================================
+THE ATTACK
+======================================
+
+First, we send:
+
+<%= 7*7 %>
+
+The page shows 49 in place of the message, which confirms the template is evaluated.
+
+Then we send:
+
+<%= system("rm /home/carlos/morale.txt") %>
+
+The server runs the rm command, which deletes Carlos's file. The page output does not matter here, only the effect on the server.
+
+============================
+HOW TO SOLVE IT MANUALLY
+============================
+
+Open the lab and load the home page with message set to <%= 7*7 %>, URL-encoded.
+Check that the page shows 49.
+Replace the message with the system() payload, URL-encoded, and load the page. The lab is marked as solved once the file is deleted.
+
+=========================
+WHAT THIS SCRIPT DOES
+=========================
+
+* It asks for the lab's base URL and sends a GET request to the home page with the message parameter.
+* It sends the test payload first and checks for status 200 and the number 49 in the response.
+* If the test passes, it sends the system() payload to delete the file.
+* It sends the payload through params=, so requests encodes it correctly.
+
+=============================
+WHY THIS HAPPENS
+=============================
+
+The application treats user input as part of the template rather than as data.
+Any template expression in the input is evaluated by the server, including ones that run system commands.
+
+=============================
+HOW TO PREVENT THIS
+=============================
+
+Never build templates from user input. Pass the user value into the template as data, for example as a variable.
+If user content must be shown, escape it so the template engine treats it as plain text.
+Restrict what the web server process can do on the file system.
+
+=============================
+ KEY POINTS TO REMEMBER
+=============================
+A template that evaluates user input is a code execution vulnerability.
+A simple arithmetic test like 7*7 confirms the injection before a harmful payload is sent.
+Never put user input into a template as code.
