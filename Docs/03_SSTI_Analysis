@@ -1,0 +1,86 @@
+==================================================
+Lab 3: Server-Side Template Injection Using Documentation (Freemarker)
+==================================================
+
+=======================
+WHAT THIS LAB IS ABOUT
+=======================
+
+A shopping website lets a content manager edit the template that generates each product description.
+The template is processed by the Freemarker engine, so anything we write in it runs on the server.
+The Freemarker documentation describes a built-in that can create Java objects, and one of those objects runs shell commands.
+
+Goal: delete /home/carlos/morale.txt by executing a system command through the template.
+
+==============================
+HOW THE WEBSITE NORMALLY WORKS
+==============================
+
+A content manager logs in, opens the template editor for a product, and saves new template text.
+The product page then renders that template and fills in values such as ${product.name} and ${product.stock}.
+
+=======================
+ WHAT IS THE PROBLEM
+=======================
+
+The template text is treated as code, not as plain page content.
+Anyone who can edit the template can use Freemarker's syntax to call Java classes on the server.
+
+===========================
+THREE THINGS TO UNDERSTAND
+===========================
+
+Freemarker expression (${ ... }): Evaluates the expression inside and prints the result. The lab's error message showed that Freemarker was in use.
+new() built-in: Creates an object of a named Java class. The Freemarker documentation warns that this is dangerous when users control templates.
+Execute class: A class in freemarker.template.utility that implements TemplateModel and runs a shell command when called.
+
+======================================
+THE ATTACK
+======================================
+
+We save this as the template:
+
+<#assign ex="freemarker.template.utility.Execute"?new()> ${ ex("rm /home/carlos/morale.txt") }
+
+The first part creates an Execute object and stores it in the variable ex.
+The second part calls it with the command, so the server runs rm on Carlos's file.
+The output of the command is not needed. The lab checks only that the file is deleted.
+
+============================
+HOW TO SOLVE IT MANUALLY
+============================
+
+Log in as content-manager and open a product's template editor.
+Replace the template text with the payload above and click Save template.
+Open the product page. The lab is marked as solved once the file is deleted.
+
+=========================
+WHAT THIS SCRIPT DOES
+=========================
+
+* It logs in as content-manager and checks that the login worked.
+* It loads /product/template?productId=2 and reads the CSRF token from that page, since the template form uses its own token.
+* It posts the payload with the same fields the browser sends: csrf, template, and template-action=save.
+* It loads the product page so Freemarker evaluates the saved template.
+
+=============================
+WHY THIS HAPPENS
+=============================
+
+The application lets users write templates that the server evaluates.
+Once a template can create arbitrary Java objects, it can call any method those objects expose, including system commands.
+
+=============================
+HOW TO PREVENT THIS
+=============================
+
+Do not let users edit template source. Let them change only the data that a fixed template displays.
+If templates must be user-editable, use a sandboxed configuration that disables new() and the Execute class.
+Run the application with the lowest permissions it needs, so a command cannot touch sensitive files.
+
+=============================
+ KEY POINTS TO REMEMBER
+=============================
+A template engine's documentation can reveal the exact object needed for code execution.
+Read the real request in the browser or Burp before writing a script, since the required fields may differ from the form you see.
+Never let users control template source.
