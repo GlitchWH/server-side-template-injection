@@ -1,0 +1,88 @@
+==================================================
+Lab 4: Server-Side Template Injection in an Unknown Language with a Documented Exploit
+==================================================
+
+=======================
+WHAT THIS LAB IS ABOUT
+=======================
+
+A shopping website shows a message on the home page through the message URL parameter.
+The server renders that value with a template engine, but the engine is not named on the page.
+We identify it from its error messages, then reuse a published exploit for that engine.
+
+Goal: run the command that deletes /home/carlos/morale.txt.
+
+==============================
+HOW THE WEBSITE NORMALLY WORKS
+==============================
+
+When the page loads with message=<text>, the server renders the text into the home page.
+A normal message, such as "Unfortunately this product is out of stock", is shown as plain text.
+
+=======================
+ WHAT IS THE PROBLEM
+=======================
+
+The message value is placed into the template before it is evaluated.
+Template syntax in the value is therefore processed by the engine, not displayed as text.
+
+===========================
+THREE THINGS TO UNDERSTAND
+===========================
+
+Fuzzing: Sending a string with many template delimiters, such as ${{<%[%'"}}%\`. Each engine reacts differently, and the error message reveals which one is in use.
+Handlebars: A JavaScript template engine. Its expressions use double curly braces, and block helpers such as #with and #each can reach JavaScript objects.
+Prototype chain: JavaScript objects inherit properties. The constructor property leads to the Function constructor, which can turn a string into executable code.
+
+======================================
+THE ATTACK
+======================================
+
+First, we send the fuzz string. The error message identifies Handlebars.
+
+Then we send the published exploit, modified to run our command. The nested #with and #each blocks build a string
+that reaches the Function constructor through lookup "constructor". The code it runs is:
+
+return require('child_process').exec('rm /home/carlos/morale.txt');
+
+The text "wrtz" at the start is plain literal text, not a template expression. It is part of the published exploit's format.
+The server runs the code, and the rm command deletes Carlos's file. The page output does not matter.
+
+============================
+HOW TO SOLVE IT MANUALLY
+============================
+
+Open the lab and submit the fuzz string in the message parameter. Note the error and identify Handlebars.
+Search for the Handlebars exploit, modify it to call child_process.exec with the rm command, URL-encode it, and load it as the message parameter.
+The lab is marked as solved once the URL loads.
+
+=========================
+WHAT THIS SCRIPT DOES
+=========================
+
+* It asks for the lab's base URL.
+* It stores the exploit as a triple-quoted string, so the template's line breaks and indentation are kept.
+* It sends the exploit through params=, so requests encodes it once. Pre-encoding would double-encode it.
+* It prints the status code. The output is not needed, since the lab checks the file deletion.
+
+=============================
+WHY THIS HAPPENS
+=============================
+
+The engine evaluates user input as template code. Handlebars can reach JavaScript's built-in objects through their properties,
+so an attacker can climb from a string to the Function constructor and run arbitrary JavaScript on the server.
+
+=============================
+HOW TO PREVENT THIS
+=============================
+
+Never pass user input into a template as template source. Pass it in as data, for example through a variable.
+Keep user input out of anything the engine treats as code, including values taken from URL parameters.
+Restrict the runtime so it cannot call child_process or other system modules.
+
+=============================
+ KEY POINTS TO REMEMBER
+=============================
+A fuzz string reveals the template engine from its error messages.
+A published exploit can be reused once the engine is identified, but it must be read and adapted to the lab.
+Never let user input reach template source, even in a message parameter.
