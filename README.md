@@ -1,6 +1,6 @@
 # Server-Side Template Injection
 
-Solutions to the PortSwigger Web Security Academy server-side template injection (SSTI) labs, with custom Python exploit scripts and step-by-step walkthroughs.
+Solutions  to the PortSwigger Web Security Academy server-side template injection (SSTI) labs, with custom Python exploit scripts and step-by-step walkthroughs.
 
 ## About
 
