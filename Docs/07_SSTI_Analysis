@@ -1,0 +1,92 @@
+==================================================
+Lab 7: Server-Side Template Injection with a Custom Exploit
+==================================================
+
+=======================
+WHAT THIS LAB IS ABOUT
+=======================
+
+A blog site lets a logged-in user choose a preferred display name. That name is placed into a template, so template syntax in it is evaluated.
+The template gives access to a user object, which has methods for managing the user's avatar and personal data.
+We use those methods to point the avatar at Carlos's SSH key, then delete it.
+
+Goal: delete /home/carlos/.ssh/id_rsa.
+
+==============================
+HOW THE WEBSITE NORMALLY WORKS
+==============================
+
+The display name setting stores a value such as user.name in blog-post-author-display.
+When a post loads, the template renders that value above each comment, so you see your name.
+
+=======================
+ WHAT IS THE PROBLEM
+=======================
+
+The saved value is inserted into the template as code.
+Closing the expression early with }} lets us call methods on the user object, including setAvatar() and gdprDelete().
+
+===========================
+THREE THINGS TO UNDERSTAND
+===========================
+
+user.setAvatar(path, mime): Sets the avatar to any file on the server. The error message told us the second argument is the MIME type.
+Avatar endpoint: GET /avatar?avatar=<username> returns the file the avatar points to, which is how we read files such as /etc/passwd.
+user.gdprDelete(): Deletes the file the avatar points to. Setting the avatar to Carlos's key and calling this method removes the key.
+
+======================================
+THE ATTACK
+======================================
+
+First, we set the avatar to the target file:
+
+user.name}}{{user.setAvatar('/home/carlos/.ssh/id_rsa','image/jpg')
+
+The original }} closes the expression, and our setAvatar call runs when the post renders.
+
+Then we delete it:
+
+user.name}}{{user.gdprDelete()
+
+The file the avatar points to is removed, which is Carlos's key.
+
+============================
+HOW TO SOLVE IT MANUALLY
+============================
+
+Log in as wiener, post a comment on any blog post, and upload a valid image as your avatar.
+Open My account and set the display name to the setAvatar payload above. Load the post to render it.
+Set the display name to the gdprDelete payload and load the post again. The lab is marked as solved once the file is deleted.
+
+Optional: to confirm file reads, set the avatar to /etc/passwd with image/jpg, then load /avatar?avatar=wiener.
+
+=========================
+WHAT THIS SCRIPT DOES
+=========================
+
+* It logs in as wiener and fetches a CSRF token from the account page.
+* It uploads a valid 1x1 PNG as the avatar. This makes the avatar point to a valid image before the template call.
+* It posts a comment, since the name only renders next to comments.
+* It saves the setAvatar payload as the display name, renders the post, then saves the gdprDelete payload and renders the post again.
+
+=============================
+WHY THIS HAPPENS
+=============================
+
+The application passes a user-controlled setting into the template engine as code.
+Any method exposed on the user object becomes reachable, including methods that read and delete files on the server.
+
+=============================
+HOW TO PREVENT THIS
+=============================
+
+Do not put user-controlled values into template source. Store a choice, such as an ID, and map it to a fixed value on the server.
+Do not expose file-handling methods on objects that templates can reach.
+Validate avatar paths on the server, and never let a user choose an arbitrary file path.
+
+=============================
+ KEY POINTS TO REMEMBER
+=============================
+Error messages can disclose method names and argument types, which guides the exploit.
+A feature that looks harmless, such as an avatar, can become a file-read or file-delete primitive through template injection.
+Never let users control template source, even through a setting.
