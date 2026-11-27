@@ -1,0 +1,86 @@
+==================================================
+Lab 6: Server-Side Template Injection in a Sandboxed Environment
+==================================================
+
+=======================
+WHAT THIS LAB IS ABOUT
+=======================
+
+A shopping website lets a content manager edit the template that generates each product description.
+The site uses the Freemarker template engine with a sandbox, which is meant to limit what templates can do.
+The sandbox is poorly implemented, so a template can still reach Java methods that read files on the server.
+
+Goal: read /home/carlos/my_password.txt and submit its contents.
+
+==============================
+HOW THE WEBSITE NORMALLY WORKS
+==============================
+
+A content manager logs in, opens the template editor for a product, and saves new template text.
+The product page renders that template, filling in values such as the product's name and price.
+
+=======================
+ WHAT IS THE PROBLEM
+=======================
+
+The sandbox blocks some direct actions, but it does not block chained method calls on the objects it exposes.
+Starting from the product object, a chain of Java method calls can reach a class that reads any file the server can access.
+
+===========================
+THREE THINGS TO UNDERSTAND
+===========================
+
+Object methods: Every Java object inherits methods from the Object class, such as getClass(), so ${object.getClass()} is reachable from any object the template can see.
+Method chaining: Each call returns a new object, and the next call works on that object. The chain walks from the product class to a class whose location lets us resolve a path to a file.
+Byte output: The file is read as bytes. ?join(" ") turns those bytes into space-separated decimal code points, which the page then shows.
+
+======================================
+THE ATTACK
+======================================
+
+We save this as the template:
+
+${product.getClass().getProtectionDomain().getCodeSource().getLocation().toURI().resolve("/home/carlos/my_password.txt").toURL().openStream().readAllBytes()?join(" ")}
+
+The chain resolves the path to my_password.txt, opens it as a stream, and reads all of its bytes.
+The page then shows those bytes as decimal numbers, such as 112 97 115 115, which convert to ASCII text.
+
+============================
+HOW TO SOLVE IT MANUALLY
+============================
+
+Log in as content-manager and open a product's template editor.
+Replace the template with the payload above and click Save template.
+Open the product page and copy the decimal numbers shown.
+Convert each number to its ASCII character, then paste the resulting string into "Submit solution".
+
+=========================
+WHAT THIS SCRIPT DOES
+=========================
+
+* It logs in as content-manager and checks that the login worked.
+* It reads the CSRF token from the template editor, then saves the payload with the fields the browser sends: csrf, template, and template-action=save.
+* It loads the product page and searches for a run of space-separated numbers, which is the file's byte output.
+* It converts each number to a character and prints the decoded text, so you can check it before submitting.
+
+=============================
+WHY THIS HAPPENS
+=============================
+
+The sandbox filters what the template can call directly, but it does not stop a chain of allowed method calls from reaching sensitive classes.
+Once the template can run any Java method on an exposed object, it can read files the web server process can access.
+
+=============================
+HOW TO PREVENT THIS
+=============================
+
+Do not let users edit template source. Let them change only the data that a fixed template displays.
+If templates must be editable, use a sandbox that blocks reflection and dangerous classes, and do not rely on blocklists of method names.
+Run the application with the lowest permissions it needs, so the process cannot read files like the password file.
+
+=============================
+ KEY POINTS TO REMEMBER
+=============================
+A sandbox that blocks single calls can still be bypassed by chaining allowed calls.
+Read the decoded output carefully, since the number sequence may include other values from the page.
+Never let users control template source.
