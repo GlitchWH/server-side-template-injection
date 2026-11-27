@@ -49,3 +49,5 @@ Several labs need a logged-in session. The scripts log in with the credentials f
 ## Disclaimer
 
 This repository is created strictly for educational purposes and authorized security research. All exercises were performed within isolated PortSwigger Web Security Academy environments.
+## Author
+GlitchWH (Waqas Hussain)
