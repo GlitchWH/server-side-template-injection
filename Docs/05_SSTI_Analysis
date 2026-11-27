@@ -1,0 +1,87 @@
+==================================================
+Lab 5: Server-Side Template Injection with Information Leak
+==================================================
+
+=======================
+WHAT THIS LAB IS ABOUT
+=======================
+
+A shopping website lets a content manager edit the template that generates each product description.
+The site uses the Django template engine, and the template can read the framework's settings.
+One of those settings is the SECRET_KEY, which the lab asks us to find and submit.
+
+Goal: find the Django SECRET_KEY and submit it with the "Submit solution" button.
+
+==============================
+HOW THE WEBSITE NORMALLY WORKS
+==============================
+
+A content manager logs in, opens the template editor for a product, and saves new template text.
+The product page renders that template, filling in values such as product name and stock.
+
+=======================
+ WHAT IS THE PROBLEM
+=======================
+
+The template text is evaluated by Django, not displayed as plain text.
+Anyone who can edit the template can reference objects the framework exposes, including the settings object.
+
+===========================
+THREE THINGS TO UNDERSTAND
+===========================
+
+Fuzz string: Invalid template syntax, such as ${{<%[%'"}}%\`, produces an error that reveals the template engine. Here, the error pointed to Django.
+{% debug %}: A built-in Django tag that lists the objects and variables available to the template, including settings.
+SECRET_KEY: Django's signing key. If an attacker learns it, they can forge session cookies and signed data.
+
+======================================
+THE ATTACK
+======================================
+
+First, we use {% debug %} to list what the template can access. The output includes the settings object.
+
+Then we save this as the template:
+
+{{settings.SECRET_KEY}}
+
+Django renders the value of SECRET_KEY into the product page. In the lab, the key appeared in the template preview as a 32-character string.
+
+============================
+HOW TO SOLVE IT MANUALLY
+============================
+
+Log in as content-manager and open a product's template editor.
+Replace the template with {% debug %} and save. Check the output for settings.
+Replace the template with {{settings.SECRET_KEY}} and click Preview or Save.
+Copy the rendered key exactly and paste it into the "Submit solution" button.
+
+=========================
+WHAT THIS SCRIPT DOES
+=========================
+
+* It logs in as content-manager and checks that the login worked.
+* It loads the product template editor and reads the CSRF token from that page.
+* It saves {{settings.SECRET_KEY}} as the template, with the fields the browser sends: csrf, template, and template-action=save.
+* It loads the product page and prints the status. The key is read in the browser, since it can't be reliably matched by a pattern.
+
+=============================
+WHY THIS HAPPENS
+=============================
+
+The application lets users write templates that the framework evaluates. The template can read any setting the engine exposes,
+and the secret key is one of them.
+
+=============================
+HOW TO PREVENT THIS
+=============================
+
+Do not let users edit template source. Let them change only the data that a fixed template displays.
+Never expose settings objects to templates that users can influence. Keep SECRET_KEY out of template context.
+Restrict the template engine to safe tags and filters. Remove debug output from production.
+
+=============================
+ KEY POINTS TO REMEMBER
+=============================
+Template injection can expose framework secrets, not only run commands.
+Read a secret from the rendered output rather than guessing its format, since key lengths and characters vary.
+Never let users control template source.
