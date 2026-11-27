@@ -25,18 +25,7 @@ Each lab in this repository has its own folder containing:
 | 6 | Server-side template injection in a sandboxed environment | Freemarker | Chaining allowed Java methods to read a file | ✅ Solved |
 | 7 | Server-side template injection with a custom exploit | Custom (PHP-style user object) | Error-disclosed `setAvatar()` and `gdprDelete()` | ✅ Solved |
 
-## Usage
 
-Each script asks for the lab URL when it runs:
-
-```bash
-pip install requests
-python scripts/<script-name>.py
-```
-
-Enter the base URL of your lab instance, without any path after it, for example `https://YOUR-LAB-ID.web-security-academy.net`.
-
-Several labs need a logged-in session. The scripts log in with the credentials from the lab description, so check them before running.
 
 ## Key Takeaways and Prevention
 
